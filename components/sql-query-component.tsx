@@ -7,6 +7,8 @@ import { DbContext } from "../app/page";
 import { SQLQuery } from "@/lib/types/schema";
 import { generateNewSQLQuery, generateTransformSQLResult } from "@/lib/action";
 import { useUIState } from "ai/rsc";
+import { LineChart } from '@/components/charts/LineChart';
+import { LineChartData } from '@/lib/types/chartTypes';
 
 export const SQLQueryComponent = ({
     query,
@@ -18,8 +20,9 @@ export const SQLQueryComponent = ({
 
     const [conversation, setConversation] = useUIState();
     const [showQuery, setShowQuery] = useState(false);
+    const [showTable, setShowTable] = useState(true);
     const [tableData, setTableData] = useState<any>({});
-    // const [chartData, setChartData] = useState<any>(null);
+    const [chartData, setChartData] = useState<LineChartData | null>(null);
     const [error, setError] = useState<string | null>(null);
     const { db } = useContext(DbContext);
 
@@ -76,7 +79,7 @@ export const SQLQueryComponent = ({
                 // Execute the function with the result
                 const transformedData = transformFunction(result);
                 console.log('transformedData', transformedData);
-                // TODO: Use transformedData to update your chart or state
+                setChartData(transformedData);
             } catch (error) {
                 console.error('Error in transform function:', error);
                 setError("Error transforming data");
@@ -125,8 +128,16 @@ export const SQLQueryComponent = ({
                 >
                     {showQuery ? "Hide SQL Query" : "Show SQL Query"}
                 </Button>
+                {chartData && (
+                    <Button
+                        onClick={() => setShowTable(!showTable)}
+                        variant="outline"
+                        className="bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
+                        {showTable ? "Hide Table" : "Show Table"}
+                    </Button>
+                )}
             </div>
-            {chartType}
             {showQuery && (
                 <>
                     <h3 className="text-secondary-foreground mb-2 font-semibold">Generated SQL Query:</h3>
@@ -142,7 +153,20 @@ export const SQLQueryComponent = ({
                     Error: {error}
                 </div>
             ) : (
-                renderDataTable()
+                <>
+                    {chartData && chartType === 'line' && (
+                        <div className="mt-4">
+                            <LineChart data={chartData} />
+                        </div>
+                    )}
+                    {showTable && !chartData && renderDataTable()}
+                    {showTable && chartData && (
+                        <div className="mt-4">
+                            <h3 className="text-secondary-foreground mb-2 font-semibold">Data Table:</h3>
+                            {renderDataTable()}
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );
