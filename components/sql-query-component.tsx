@@ -19,8 +19,7 @@ export const SQLQueryComponent = ({
 }) => {
 
     const [conversation, setConversation] = useUIState();
-    const [showQuery, setShowQuery] = useState(false);
-    const [showTable, setShowTable] = useState(true);
+    const [activeView, setActiveView] = useState<'query' | 'table' | 'chart'>('query');
     const [tableData, setTableData] = useState<any>({});
     const [chartData, setChartData] = useState<LineChartData | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -28,15 +27,14 @@ export const SQLQueryComponent = ({
 
     // Function to execute the SQL query
     const executeQuery = async (queryToExecute: string, retryCount: number = 0) => {
-        // console.log('executing query', queryToExecute);
         if (db && queryToExecute) {
             let result: any;
             try {
                 result = db.exec(queryToExecute);
                 if (result.length > 0) {
-                    // console.log('\nresult', result);
                     setTableData(result[0]);
                     setError(null);
+                    setActiveView('table');
                 } else {
                     setTableData({});
                     setError("Query returned no results");
@@ -52,7 +50,6 @@ export const SQLQueryComponent = ({
                     errorMessage = "An unknown error occurred";
                 }
 
-                // Call the new function to generate a new query
                 if (retryCount < 3) {
                     console.log('generating new query');
                     const newQuery = await generateNewSQLQuery(queryToExecute, errorMessage, conversation[0]);
@@ -67,19 +64,13 @@ export const SQLQueryComponent = ({
                 return;
             }
 
-            // Transform function part outside of try-catch for SQL execution
             try {
                 const transformFunctionString = await generateTransformSQLResult(result);
-                // console.log('transformFunctionString', transformFunctionString);
-                // Create a function from the string
                 const transformFunction = new Function('sqlResult', `return (${transformFunctionString})(sqlResult)`);
-
-                // console.log('transformFunction', transformFunction);
-
-                // Execute the function with the result
                 const transformedData = transformFunction(result);
                 console.log('transformedData', transformedData);
                 setChartData(transformedData);
+                setActiveView('chart');
             } catch (error) {
                 console.error('Error in transform function:', error);
                 setError("Error transforming data");
@@ -87,12 +78,10 @@ export const SQLQueryComponent = ({
         }
     };
 
-    // Execute query when component mounts or query changes
     useEffect(() => {
         executeQuery(query);
     }, [db, query]);
 
-    // Function to render the data table
     const renderDataTable = () => {
         if (!tableData.columns || !tableData.values) return null;
 
@@ -122,48 +111,56 @@ export const SQLQueryComponent = ({
         <div className="bg-secondary p-4 rounded-md m-4 max-w-prose">
             <div className="flex gap-2 mb-4">
                 <Button
-                    onClick={() => setShowQuery(!showQuery)}
-                    variant="outline"
+                    onClick={() => setActiveView('query')}
+                    variant={activeView === 'query' ? "default" : "outline"}
                     className="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
-                    {showQuery ? "Hide SQL Query" : "Show SQL Query"}
+                    SQL Query
                 </Button>
-                {chartData && (
+                {tableData.columns && (
                     <Button
-                        onClick={() => setShowTable(!showTable)}
-                        variant="outline"
+                        onClick={() => setActiveView('table')}
+                        variant={activeView === 'table' ? "default" : "outline"}
                         className="bg-primary text-primary-foreground hover:bg-primary/90"
                     >
-                        {showTable ? "Hide Table" : "Show Table"}
+                        Data Table
+                    </Button>
+                )}
+                {chartData && (
+                    <Button
+                        onClick={() => setActiveView('chart')}
+                        variant={activeView === 'chart' ? "default" : "outline"}
+                        className="bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
+                        Chart
                     </Button>
                 )}
             </div>
-            {showQuery && (
-                <>
-                    <h3 className="text-secondary-foreground mb-2 font-semibold">Generated SQL Query:</h3>
-                    <pre className="bg-muted p-2 rounded-md overflow-x-auto">
-                        <code className="text-muted-foreground">
-                            {query}
-                        </code>
-                    </pre>
-                </>
-            )}
             {error ? (
                 <div className="mt-4 text-destructive">
                     Error: {error}
                 </div>
             ) : (
                 <>
-                    {chartData && chartType === 'line' && (
-                        <div className="mt-4">
-                            <LineChart data={chartData} />
-                        </div>
+                    {activeView === 'query' && (
+                        <>
+                            <h3 className="text-secondary-foreground mb-2 font-semibold">Generated SQL Query:</h3>
+                            <pre className="bg-muted p-2 rounded-md overflow-x-auto">
+                                <code className="text-muted-foreground">
+                                    {query}
+                                </code>
+                            </pre>
+                        </>
                     )}
-                    {showTable && !chartData && renderDataTable()}
-                    {showTable && chartData && (
+                    {activeView === 'table' && tableData.columns && (
                         <div className="mt-4">
                             <h3 className="text-secondary-foreground mb-2 font-semibold">Data Table:</h3>
                             {renderDataTable()}
+                        </div>
+                    )}
+                    {activeView === 'chart' && chartData && chartType === 'line' && (
+                        <div className="mt-4">
+                            <LineChart data={chartData} />
                         </div>
                     )}
                 </>
